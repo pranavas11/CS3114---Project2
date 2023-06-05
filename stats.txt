@@ -1,0 +1,10 @@
+Sort on input10b.dat
+Cache Hits: 314938
+Disk Reads: 43
+Disk Writes: 43
+Time is 43
+Sort on input10a.dat
+Cache Hits: 2205702
+Disk Reads: 31
+Disk Writes: 31
+Time is 88
