@@ -1,70 +1,115 @@
 /**
- * Implementation of Quicksort on the buffered pool.
+ * Quick Sort class
  * @author      Pranav Prabhu
- * @version     06/06/2023
+ * @version     06/08/2023
  */
 
-import java.nio.ByteBuffer;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.io.File;
 
 public class QSort {
-    private BufferPool buffer;
-    private int diskSize;
+    private BufferPool bp;
     private int numOfBuffers;
-    private final int BLOCK_SIZE = 4096;
+    private int size;
     
     /**
      * QSort class constructor
      */
-    public QSort(String fileName, int numBuffers) {
-        // parameter: buffer pool
+    public QSort(String fileName, int buffers) throws IOException {
         File file = new File(fileName);
-        this.buffer = new BufferPool(file, numBuffers);
-        this.numOfBuffers = numBuffers;
+        bp = new BufferPool(file, buffers);
+        this.numOfBuffers = buffers;
+        this.size = (bp.getNumOfBlocks() * 4096) / 4;
     }
     
-    int partition(Comparable[] A, int left, int right, Comparable pivot) {
-        // move bounds inward until they meet
-        while (left <= right) {
-            while (A[left].compareTo(pivot) < 0) left++;
-            while ((right >= left) && (A[right].compareTo(pivot) >= 0)) right--;
-            if (right > left) swap(A, left, right); // swap out-of-place values
+    public int getSize() {
+        return this.size;
+    }
+    
+    public int pivot(int left, int right) throws IOException {
+        return (left + right) / 2;
+    }
+    
+    public void readBlock() throws IOException {
+        BufferPool.Buffer buffer;
+        for (int i = 0; i < bp.getNumOfBlocks(); i++) {
+            buffer = bp.getBuffer(i);
+            ByteBuffer bb = ByteBuffer.allocate(2);
+            bb.order(ByteOrder.BIG_ENDIAN);
+            
+            for (int j = 0; j < 1024; j++) {
+                byte[] currentRecord = buffer.getData(j);
+                bb.put(currentRecord[0]);
+                bb.put(currentRecord[1]);
+                short key = bb.getShort(0);
+                bb.clear();
+                
+                bb.put(currentRecord[2]);
+                bb.put(currentRecord[3]);
+                short value = bb.getShort(0);
+                bb.clear();
+                //System.out.println("bp.getKey(): " + bp.getKey(i * 1024 + j));
+            }
         }
-        return left;    // return first position in right partition
-      }
-
-      int findpivot(Comparable[] A, int i, int j) {
-          return (i + j) / 2;
-      }
-      
-      public void swap(Comparable[] A, int i, int j) {
-          Comparable temp = A[i];
-          A[i] = A[j];
-          A[j] = temp;
-      }
-      
-      //public
-      /*
-       * 1. method to return a key given a byte array record
-       *        - private short key (key comes from byte buffer; takes a byte array record and you wrap that record using wrap() builtin method in byte buffer. Then call the method getShort() which returns a key.)
-       * 
-       * 2. boolean checkDuplicates: returns true if all key values from positions from i to j are equal to the given pivot
-       */
-
-      void quicksort(Comparable[] A, int i, int j) {
-          int pivotindex = findpivot(A, i, j);      // pick a pivot
-          swap(A, pivotindex, j);                   // stick pivot at end
-          
-          // k will be the first position in the right subarray
-          int k = partition(A, i, j-1, A[j]);
-          swap(A, k, j);                            // put pivot in place
-          if ((k-i) > 1) quicksort(A, i, k-1);      // sort left partition
-          if ((j-k) > 1) quicksort(A, k+1, j);      // sort right partition
-      }
-      
-      public short getKey(byte[] record) {
-          ByteBuffer buffer = ByteBuffer.wrap(record);
-          return buffer.getShort();
-      }
+    }
+        
+    public void swap(int low, int high) throws IOException {
+        // single block swap
+        int lowBlock = low / 1024;
+        int highBlock = high / 1024;
+        int lowPos = low % 1024;
+        int highPos = high % 1024;
+        
+        byte[] lowData = bp.getBuffer(lowBlock).getData(lowPos);
+        byte[] highData = bp.getBuffer(highBlock).getData(highPos);
+        bp.getBuffer(lowBlock).setData(highData, lowPos);
+        bp.getBuffer(highBlock).setData(lowData, highPos);
+    }
+    
+    public int partition(int left, int right, short pivot) throws IOException {
+        while (left <= right) {
+            while (bp.getKey(left) < pivot) {
+                left++;
+            }
+            
+            while (right >= left && bp.getKey(right) >= pivot) {
+                right--;
+            }
+            
+            if (right > left) {
+                swap(left, right);
+                left++;
+                right--;
+            }
+        }
+        
+        return left;
+    }
+    
+    public void sort(int i, int j) throws IOException {
+        if (i >= 0 && j >= 0 && i < j) {
+            int pivotIndex = pivot(i, j);
+            swap(pivotIndex, j);
+            int k = partition(i, j - 1, bp.getKey(j));
+            swap(k, j);
+            
+            if ((k - i) > 1) {
+                sort(i, k - 1);
+            }
+            
+            if ((j - k) > 1) {
+                sort(k + 1, j);
+            }
+        }
+    }
+    
+    public void quicksort() throws IOException {
+        sort(0, getSize() - 1);
+    }
+    
+    public void flush() throws IOException {
+        bp.flush();
+    }
 }
