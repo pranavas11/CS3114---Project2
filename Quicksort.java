@@ -25,7 +25,9 @@
 // during the discussion. I have violated neither the spirit nor
 // letter of this restriction.
 
-import java.io.IOException;
+//import java.io.IOException;
+import java.io.*;
+import java.util.*;
 
 /**
  * Quicksort class contains the main method.
@@ -34,9 +36,16 @@ import java.io.IOException;
  */
 
 public class Quicksort {
+    /**
+     * Main method
+     * @param   args    CLI arguments
+     * @throws  IOException
+     */
     public static void main(String[] args) throws IOException {
         if (args.length != 3) {
-            System.out.println("Error: Please provide the data file name, number of buffers, and stat file as arguments.");
+            System.out.println("Error: Please provide the data"
+                + " file name, number of buffers,"
+                + "and stat file as arguments.");
             return;
         }
         
@@ -54,6 +63,60 @@ public class Quicksort {
         long endTime = System.currentTimeMillis();      // end timer
         
         // append stats data to a text file
-        BufferPool.Stats.stats(dataFile, "statistics.txt", startTime, endTime);
+        BufferPool.Stats.stats(dataFile, statFile, startTime, endTime);
+    }
+    
+    /**
+     *  generate random long integer values for using generateFile() method
+     * @param   num     a integer value
+     * @return  long random integer
+     */
+    public int getRandomNum(int num) {
+        Random value = new Random();
+        int randomNum = Math.abs(value.nextInt()) % num;
+        return randomNum;
+    }
+    
+    /**
+     * Generate random binary files for testing
+     * @param   args    CLI arguments
+     * @throws  IOException
+     */
+    public void generateFile(String[] args) throws IOException {
+        short val;
+        int option = Integer.parseInt(args[0]);
+        DataOutputStream file = new
+            DataOutputStream(new BufferedOutputStream(
+                new FileOutputStream(args[1])));
+        int fileSize = Integer.parseInt(args[2]);
+                
+        // write ASCII character type values
+        if (option == 1) {
+            for (int i = 0; i < fileSize; i++) {
+                for (int j = 0; j < 2048; j++) {
+                    if ((j % 2) == 1) {
+                        val = (short)(8224);
+                    }
+                    else {
+                        val = (short)(getRandomNum(26) + 0x2041);
+                    }
+                    file.writeShort(val);
+                }
+            }
+        }
+        else {
+            // write binary data to file
+            for (int i = 0; i < fileSize; i++) {
+                // max of short type is 2048
+                for (int j = 0; j < 2048; j++) {
+                    // generate random num and append val to binary file
+                    val = (short)(getRandomNum(29999) + 1);
+                    file.writeShort(val);
+                }
+            }
+        }
+                        
+        file.flush();
+        file.close();
     }
 }
