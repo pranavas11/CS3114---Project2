@@ -14,7 +14,8 @@ public class BufferPool {
     private int numOfBlocks;
     private Node start;
     private Node end;
-    //private int maxBufferCount;
+    private final static int BLOCK_SIZE  = 4096;
+    private final static int RECORD_SIZE = 4;
     
     /**
      * Stats class
@@ -34,6 +35,7 @@ public class BufferPool {
          */
         public static void stats(String dataFile, String statFileName,
             long startTime, long endTime) throws IOException {
+            // write disk stats to a text file
             RandomAccessFile statsFile = new
                 RandomAccessFile(statFileName, "rw");
             statsFile.seek(statsFile.length());
@@ -62,10 +64,10 @@ public class BufferPool {
          * @param   blockNum    block number
          */
         public Buffer(RandomAccessFile diskFile, int blockNum) {
-            this.data = new byte[4096];
+            this.data = new byte[BLOCK_SIZE];
             this.file = diskFile;
             this.block = blockNum;
-            this.pos = blockNum * 4096;
+            this.pos = blockNum * BLOCK_SIZE;
             this.dirtyFlag = false;
         }
         
@@ -75,8 +77,8 @@ public class BufferPool {
          * @param   position    position in buffer
          */
         public void setData(byte[] newData, int position) {
-            for (int i = 0; i < 4; i++) {
-                data[position * 4 + i] = newData[i];
+            for (int i = 0; i < RECORD_SIZE; i++) {
+                data[position * RECORD_SIZE + i] = newData[i];
             }
             this.dirtyFlag = true;
         }
@@ -95,8 +97,10 @@ public class BufferPool {
          * @return  array of data of a given range
          */
         public byte[] getData(int position) {
+            // increment cache and return byte[] data of selected range
             Stats.cacheHits++;
-            return Arrays.copyOfRange(data, position * 4, position * 4 + 4);
+            return Arrays.copyOfRange(data, position * RECORD_SIZE,
+                position * RECORD_SIZE + RECORD_SIZE);
         }
         
         /**
@@ -104,7 +108,8 @@ public class BufferPool {
          * @throws IOException
          */
         public void read() throws IOException {
-            data = new byte[4096];
+            // read data from disk at current position
+            data = new byte[BLOCK_SIZE];
             file.seek(this.pos);
             file.read(data);
             Stats.diskReads++;
@@ -115,6 +120,7 @@ public class BufferPool {
          * @throws IOException
          */
         public void write() throws IOException {
+            // write data to disk if buffer is dirty
             if (dirtyFlag) {
                 file.seek(this.pos);
                 file.write(data);
@@ -153,12 +159,13 @@ public class BufferPool {
      */
     public BufferPool(File file, int bufferCount) throws IOException {
         this.file = new RandomAccessFile(file, "rw");
-        this.numOfBlocks = (int)(this.file.length() - 4) / 4096 + 1;
-        //this.maxBufferCount = bufferCount;
+        this.numOfBlocks = (int)(this.file.length() -
+            RECORD_SIZE) / BLOCK_SIZE + 1;
         Node newNode = new Node(null, null, null);
         this.start = newNode;
         this.end = newNode;
         
+        // create a doubly linked list of nodes for managing buffers
         for (int i = 1; i < bufferCount; i++) {
             this.end.next = new Node(this.end, null, null);
             this.end = this.end.next;
@@ -181,63 +188,88 @@ public class BufferPool {
      */
     public Buffer getBuffer(int block) throws IOException {
         Node curr = start;
+        
+        // traverse the doubly linked list to find the
+        // buffer with the specified block ID
         while (curr != null) {
+            // check if the current node has a buffer
+            // and its block number matches the given block
             if (curr.buffer != null && curr.buffer.getBlock() == block) {
+                // if the current node is the start node, return its buffer
                 if (curr == start) {
                     return curr.buffer;
                 }
                 else {
+                    // reorder the list to move the current node to the start
                     curr.prev.next = curr.next;
                     if (curr.next != null) {
                         curr.next.prev = curr.prev;
                     }
                     else {
+                        // end of the linked list
                         end = curr.prev;
                     }
+                    
                     curr.prev = null;
                     curr.next = start;
                     start.prev = curr;
                     start = curr;
-                    return curr.buffer;
+                    return curr.buffer; // return the buffer of the current node
                 }
             }
-            curr = curr.next;
+            curr = curr.next;   // move to the next node
         }
-
+        
+        // if the buffer with the specified block is not found,
+        // create a new buffer and read its contents
         Buffer newBuffer = new Buffer(this.file, block);
         newBuffer.read();
-
         curr = end;
+        
+        // traverse the list in reverse to find an empty
+        // or non-dirty buffer node
         while (curr != null) {
             if (curr.buffer == null || !curr.buffer.dirtyFlag) {
+                // assign the new buffer to the current node
                 curr.buffer = newBuffer;
+                
+                // if the current node is the start node, return its buffer
                 if (curr == start) {
                     return curr.buffer;
                 }
                 else {
+                    // reorder the list to move the current node to the start
                     curr.prev.next = curr.next;
                     if (curr.next != null) {
                         curr.next.prev = curr.prev;
                     }
                     else {
+                        // end of the linked list
                         end = curr.prev;
                     }
+                    
                     curr.prev = null;
                     curr.next = start;
                     start.prev = curr;
                     start = curr;
-                    return curr.buffer;
+                    return curr.buffer; // return the buffer of the current node
                 }
             }
-            curr = curr.prev;
+            curr = curr.prev;   // move to the previous node
         }
+        
+        // write the contents of the buffer at the end node
+        // and assign the new buffer to it
         end.buffer.write();
         end.buffer = newBuffer;
-
+        
+        // if the end node is also the start node, return its buffer
         if (end == start) {
             return end.buffer;
         }
         else {
+            // reorder the linked list to move the end node to
+            // the start and return the buffer of the start node
             end.prev.next = null;
             end.next = start;
             start.prev = end;
@@ -247,7 +279,7 @@ public class BufferPool {
             return start.buffer;
         }
     }
-    
+        
     // VERSION 2 (without dirtyFlag)
     /*public Buffer getBuffer2(int block) throws IOException {
         Node curr = start;
@@ -301,8 +333,9 @@ public class BufferPool {
      * @throws  IOException
      */
     public short getKey(int index) throws IOException {
-        int block = (index * 4) / 4096;
-        int pos = (index * 4) % 4096;
+        // get the key at the specified position of the block
+        int block = (index * RECORD_SIZE) / BLOCK_SIZE;
+        int pos = (index * RECORD_SIZE) % BLOCK_SIZE;
         short key = ByteBuffer.wrap(getBuffer(block).data).getShort(pos);
         return key;
     }
@@ -312,10 +345,11 @@ public class BufferPool {
      * @throws IOException
      */
     public void flush() throws IOException {
-        // flush the buffer pool
+        // flush the entire buffer pool
         Node curr = start;
         
         while (curr != null) {
+            // loop the linked list and write empty data
             if (curr.buffer != null) {
                 curr.buffer.write();
             }

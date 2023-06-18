@@ -1,6 +1,6 @@
 import java.util.Random;
-import student.TestCase;
 import java.io.IOException;
+import student.TestCase;
 
 /**
  * @author  Pranav Prabhu
@@ -53,8 +53,16 @@ public class QuicksortTest extends TestCase {
         String[] args2 = {"test2", "10", "stat"};
         sort2.main(args2);
         
+        String[] testArgs3 = {"1", "test3", "1"};
+        Quicksort sort3 = new Quicksort();
+        assertNotNull(sort3);
+        sort3.generateFile(testArgs3);
+        String[] args3 = {"test3", "1", "stat"};
+        sort3.main(args3);
+                        
         assertEquals("5", args1[1]);
         assertEquals("10", args2[1]);
+        assertEquals("1", args3[1]);
     }
 
     /**

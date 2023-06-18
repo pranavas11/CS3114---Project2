@@ -25,7 +25,6 @@
 // during the discussion. I have violated neither the spirit nor
 // letter of this restriction.
 
-//import java.io.IOException;
 import java.io.*;
 import java.util.*;
 
@@ -45,7 +44,7 @@ public class Quicksort {
         if (args.length != 3) {
             System.out.println("Error: Please provide the data"
                 + " file name, number of buffers,"
-                + "and stat file as arguments.");
+                + " and stat file as arguments.");
             return;
         }
         
@@ -89,7 +88,7 @@ public class Quicksort {
             DataOutputStream(new BufferedOutputStream(
                 new FileOutputStream(args[1])));
         int fileSize = Integer.parseInt(args[2]);
-                
+        
         // write ASCII character type values
         if (option == 1) {
             for (int i = 0; i < fileSize; i++) {
@@ -103,8 +102,7 @@ public class Quicksort {
                     file.writeShort(val);
                 }
             }
-        }
-        else {
+        } else {
             // write binary data to file
             for (int i = 0; i < fileSize; i++) {
                 // max of short type is 2048
@@ -115,7 +113,8 @@ public class Quicksort {
                 }
             }
         }
-                        
+        
+        // flush the buffer and close the file
         file.flush();
         file.close();
     }

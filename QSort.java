@@ -10,8 +10,9 @@ import java.io.File;
  */
 public class QSort {
     private BufferPool bp;
-    private int numOfBuffers;
     private int size;
+    private final static int BLOCK_SIZE  = 4096;
+    private final static int RECORD_SIZE = 4;
     
     /**
      * QSort class constructor
@@ -20,10 +21,10 @@ public class QSort {
      * @throws  IOException
      */
     public QSort(String fileName, int buffers) throws IOException {
+        // create data file, buffer pool, and set the size of buffer
         File file = new File(fileName);
         bp = new BufferPool(file, buffers);
-        this.numOfBuffers = buffers;
-        this.size = (bp.getNumOfBlocks() * 4096) / 4;
+        this.size = (bp.getNumOfBlocks() * BLOCK_SIZE) / RECORD_SIZE;
     }
     
     /**
@@ -42,7 +43,7 @@ public class QSort {
      * @throws IOException
      */
     public int pivot(int left, int right) throws IOException {
-        return (left + right) / 2;
+        return (left + right) / 2;      // middle point of block
     }
     
     /**
@@ -51,18 +52,27 @@ public class QSort {
      */
     public void readBlock() throws IOException {
         BufferPool.Buffer buffer;
+        
+        // iterate through each block in the buffer pool
         for (int i = 0; i < bp.getNumOfBlocks(); i++) {
+            // create a new ByteBuffer with a capacity of 2
+            // bytes and set the byte order to big endian
             buffer = bp.getBuffer(i);
             ByteBuffer bb = ByteBuffer.allocate(2);
             bb.order(ByteOrder.BIG_ENDIAN);
             
+            // iterate through each record in the buffer
             for (int j = 0; j < 1024; j++) {
+                // retrieve the first two bytes of the current record
+                //and interpret them as a short value (big endian)
                 byte[] currentRecord = buffer.getData(j);
                 bb.put(currentRecord[0]);
                 bb.put(currentRecord[1]);
                 short key = bb.getShort(0);
                 bb.clear();
                 
+                // retrieve the next two bytes of the current record
+                // and interpret them as a short value (big endian)
                 bb.put(currentRecord[2]);
                 bb.put(currentRecord[3]);
                 short value = bb.getShort(0);
@@ -80,13 +90,17 @@ public class QSort {
      */
     public void swap(int low, int high) throws IOException {
         // single block swap
+        // find block and position indices for low and high values
         int lowBlock = low / 1024;
         int highBlock = high / 1024;
         int lowPos = low % 1024;
         int highPos = high % 1024;
         
+        // get the byte arrays representing the data at the positions
         byte[] lowData = bp.getBuffer(lowBlock).getData(lowPos);
         byte[] highData = bp.getBuffer(highBlock).getData(highPos);
+        
+        // swap the data between the low and high positions
         bp.getBuffer(lowBlock).setData(highData, lowPos);
         bp.getBuffer(highBlock).setData(lowData, highPos);
     }
@@ -101,24 +115,31 @@ public class QSort {
      */
     public int partition(int left, int right, short pivot) throws IOException {
         while (left <= right) {
+            // move the left pointer until a key greater than
+            // or equal to the pivot is found
             while (bp.getKey(left) < pivot) {
                 left++;
             }
             
+            // move the right pointer until a key less than pivot
+            // is found or the pointers cross each other
             while (right >= left && bp.getKey(right) >= pivot) {
                 right--;
             }
             
+            // swap elements if the right pointer is greater than the left
             if (right > left) {
+                // swap the elements at left and right positions
                 swap(left, right);
                 left++;
                 right--;
             }
         }
         
+        // return the updated left pointer as the partitioning index
         return left;
     }
-    
+            
     /**
      * Sort function performs all the quick sort logic.
      * @param   i   left index
@@ -131,7 +152,7 @@ public class QSort {
             swap(pivotIndex, j);
             int k = partition(i, j - 1, bp.getKey(j));
             swap(k, j);
-            
+                                    
             if ((k - i) > 1) {
                 sort(i, k - 1);
             }
